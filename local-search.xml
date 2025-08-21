@@ -4,6 +4,33 @@
   
   
   <entry>
+    <title>CLIP_Reid_Change代码解读</title>
+    <link href="/2025/08/21/Clip_ReID_change/"/>
+    <url>/2025/08/21/Clip_ReID_change/</url>
+    
+    <content type="html"><![CDATA[<h1 id="修改思路"><a href="#修改思路" class="headerlink" title="修改思路"></a>修改思路</h1><p>（1）使用qianwen-VL生成文本描述<br>（2）加入模态融合模块</p><h1 id="整体框架"><a href="#整体框架" class="headerlink" title="整体框架"></a>整体框架</h1><h2 id="make-dataloader"><a href="#make-dataloader" class="headerlink" title="make_dataloader()"></a>make_dataloader()</h2><p>数据的加载函数<br>实现：（make_dataloader_clipreid.py）<br>（1）数据集的增强，训练数据集的翻转，裁剪，填充，擦除，归一化等；测试集只有resize操作。<br>（2）采样方法，要计算三元组损失时需要对应的采样方法构成正例和负例对。<br><strong>注：market1501数据集的预处理中（market1501.py）有对训练数据集的pid进行relable,使id连续，测试集无。</strong></p><h2 id="make-model（）"><a href="#make-model（）" class="headerlink" title="make_model（）"></a>make_model（）</h2><p>实现：（make_model_clipreid.py）<br>（1）交叉注意力模块实现模态的进一步融合（复现PromptSG）<br>（2）PromptLearner类得到图像的prompt（此处使用的qianwen-VL产生的text）会对text进行长度截断，分词，得到embedding<br>（3）TextEncoder类获得文本特征,embedding作为输入加上位置编码，经过clip的transformer后取出EOS token（序列中tokenID最大的token,代表文本特征）<br>（4）build_transformer类实现模型的前向计算过程，主要包括图像特征提取backbone的选择，相机和视角信息的加入选择，是否返回融合特征的选择<br>看返回值的代码</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">if</span> <span class="hljs-variable language_">self</span>.training:<span class="hljs-comment">#训练阶段的返回值</span><br>           cls_score = <span class="hljs-variable language_">self</span>.classifier(feat)<br>           cls_score_proj = <span class="hljs-variable language_">self</span>.classifier_proj(feat_proj)<br>           <br>           <span class="hljs-keyword">if</span> <span class="hljs-variable language_">self</span>.use_modal_fusion <span class="hljs-keyword">and</span> fused_features <span class="hljs-keyword">is</span> <span class="hljs-keyword">not</span> <span class="hljs-literal">None</span>:<br>               <span class="hljs-keyword">return</span> [cls_score, cls_score_proj], [img_feature_last, img_feature, img_feature_proj], img_feature_proj, fused_features<br>           <span class="hljs-keyword">else</span>:<br>               <span class="hljs-keyword">return</span> [cls_score, cls_score_proj], [img_feature_last, img_feature, img_feature_proj], img_feature_proj<br><br>       <span class="hljs-keyword">else</span>:<br>           <span class="hljs-keyword">if</span> <span class="hljs-variable language_">self</span>.neck_feat == <span class="hljs-string">&#x27;after&#x27;</span>:<span class="hljs-comment">#BN后的特征在训练时用来分类，而BN前的特征在测试时用来对比</span><br>               <span class="hljs-comment"># print(&quot;Test with feature after BN&quot;)</span><br>               <span class="hljs-keyword">return</span> torch.cat([feat, feat_proj], dim=<span class="hljs-number">1</span>)<br>           <span class="hljs-keyword">else</span>:<br>               <span class="hljs-keyword">return</span> torch.cat([img_feature, img_feature_proj], dim=<span class="hljs-number">1</span>)<br><br></code></pre></td></tr></table></figure><p>模型训练模式下依次返回，[特征对应分数值（特征经过classifier得到），投影后特征对应的分数值]，[第十一层的特征，第12层的特征，最后经过投影后的特征],投影后特征，融合特征<br>在模型的评估模式下依次返回[12层特征经过BatchNormize层后的特征，12层特征投影后经过BatchNormize层后的特征]<br><strong>由此可知在进行评估时没有使用融合特征，还是用的图像特征，只是在训练时用融合特征计算损失函数优化visual encoder。需要做修改和相关实验</strong></p><h2 id="make-loss（）"><a href="#make-loss（）" class="headerlink" title="make_loss（）"></a>make_loss（）</h2><p>实现:( make_loss.py)<br>（1）在标签平滑（labelsmooth）的情况下和不使用labelsmooth的情况下计算交叉熵损失（IDloss）,三元组损失的计算<br>（2）独立的中心损失的计算<br> <strong>注：在修改之后，去掉了clip-reid中的Li2tce损失，后续可做相关的改进和实验</strong></p><h1 id="实验结果"><a href="#实验结果" class="headerlink" title="实验结果"></a>实验结果</h1><p> market1501数据集<br> baseline:<br> clip-reid<br> mAP:89.6<br> R1:95.5<br> 修改后<br> 文件名：vl_crossatten_market1501<br> mAP:88.1<br> R1:93.9</p>]]></content>
+    
+    
+    <categories>
+      
+      <category>Projects - CLIP_Reid_Change</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>reid</tag>
+      
+      <tag>code</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
     <title>HEXO Editor</title>
     <link href="/2025/03/15/HEXO-Editor/"/>
     <url>/2025/03/15/HEXO-Editor/</url>
