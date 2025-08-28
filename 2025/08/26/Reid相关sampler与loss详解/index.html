@@ -28,7 +28,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://example.com/HEXO-Editor/sampler.png">
 <meta property="article:published_time" content="2025-08-26T08:12:28.501Z">
-<meta property="article:modified_time" content="2025-08-26T14:59:01.696Z">
+<meta property="article:modified_time" content="2025-08-28T03:17:31.310Z">
 <meta property="article:author" content="Xixi">
 <meta property="article:tag" content="loss">
 <meta property="article:tag" content="sampler">
@@ -226,7 +226,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          1.4k 字
+          1.7k 字
         
       </span>
     
@@ -237,7 +237,7 @@
         
         
         
-          12 分钟
+          14 分钟
         
       </span>
     
@@ -297,6 +297,14 @@
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-comment"># 创建标签y (全为1)</span><br>y = dist_an_adjusted.new().resize_as_(dist_an_adjusted).fill_(<span class="hljs-number">1</span>)<br><span class="hljs-built_in">print</span>(<span class="hljs-string">&quot;标签y:&quot;</span>, y)<br><span class="hljs-comment"># tensor([1., 1., 1., 1., 1., 1.])</span><br><br><span class="hljs-comment"># 使用MarginRankingLoss计算损失</span><br>margin = <span class="hljs-number">0.3</span><br>ranking_loss = nn.MarginRankingLoss(margin=margin)<br><br><span class="hljs-comment"># MarginRankingLoss公式: max(0, margin + x1 - x2)</span><br><span class="hljs-comment"># 这里 x1=dist_ap_adjusted, x2=dist_an_adjusted</span><br>loss = ranking_loss(dist_an_adjusted, dist_ap_adjusted, y)<br><br></code></pre></td></tr></table></figure>
 <p>创建标签y的目的：<br>MarginRankingLoss 公式:loss &#x3D; max(0, -y * (x2 - x1) + margin)<br>本质没变：anchor到负例的距离比到正例的距离大margin才好，当负样本距离 &gt;&gt; 正样本距离 + 边界时，损失为0。</p>
 <h2 id="对比损失，图像对文本的交叉熵"><a href="#对比损失，图像对文本的交叉熵" class="headerlink" title="对比损失，图像对文本的交叉熵"></a>对比损失，图像对文本的交叉熵</h2><iframe src="/pdfjs/web/viewer.html?file=/pdf/loss.pdf" style='width:100%;height:800px'></iframe>   
+# 评价指标
+计算示例
+## cmc
+反映的是排序结果
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-comment"># 假设某个查询的匹配情况</span><br><span class="hljs-attribute">orig_cmc</span> =<span class="hljs-meta"> [0, 0, 1, 0, 1, 0, 1, 0, 0, 0]</span><br><span class="hljs-comment">#          排名1 2 3 4 5 6 7 8 9 10</span><br><br><span class="hljs-comment"># 累积求和</span><br><span class="hljs-attribute">cmc</span> = orig_cmc.cumsum()<br><span class="hljs-comment"># cmc = [0, 0, 1, 1, 2, 2, 3, 3, 3, 3]</span><br><br><span class="hljs-comment"># 限制为0或1  </span><br><span class="hljs-attribute">cmc</span>[cmc &gt; <span class="hljs-number">1</span>] = <span class="hljs-number">1</span><br><span class="hljs-comment"># cmc = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1]</span><br><br><span class="hljs-comment"># 含义：</span><br><span class="hljs-comment"># CMC@1 = 0 (Rank-1位置没有匹配)</span><br><span class="hljs-comment"># CMC@3 = 1 (Rank-3及以后都有匹配)</span><br></code></pre></td></tr></table></figure>
+## mAP
+反映的是一个查询（query）对应的检索结果的排序质量。
+<figure class="highlight apache"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs apache"><span class="hljs-comment"># 假设匹配情况</span><br><span class="hljs-attribute">orig_cmc</span> =<span class="hljs-meta"> [0, 0, 1, 0, 1, 0, 1, 0, 0, 0]</span><br><span class="hljs-attribute">num_rel</span> = <span class="hljs-number">3</span>  # 总共<span class="hljs-number">3</span>个相关文档<br><br><span class="hljs-comment"># 累积匹配数</span><br><span class="hljs-attribute">tmp_cmc</span> =<span class="hljs-meta"> [0, 0, 1, 1, 2, 2, 3, 3, 3, 3]</span><br><br><span class="hljs-comment"># 每个位置的精度</span><br><span class="hljs-attribute">positions</span> =<span class="hljs-meta"> [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]</span><br><span class="hljs-attribute">precisions</span> = tmp_cmc / positions =<span class="hljs-meta"> [0, 0, 1/3, 1/4, 2/5, 2/6, 3/7, 3/8, 3/9, 3/10]</span><br><br><span class="hljs-comment"># 只保留相关位置的精度（乘以orig_cmc）</span><br><span class="hljs-attribute">relevant_precisions</span> =<span class="hljs-meta"> [0, 0, 1/3, 0, 2/5, 0, 3/7, 0, 0, 0]</span><br><br><span class="hljs-comment"># 平均精度</span><br><span class="hljs-attribute">AP</span> = (<span class="hljs-number">1</span>/<span class="hljs-number">3</span> + <span class="hljs-number">2</span>/<span class="hljs-number">5</span> + <span class="hljs-number">3</span>/<span class="hljs-number">7</span>) / <span class="hljs-number">3</span> = <span class="hljs-number">0</span>.<span class="hljs-number">352</span><br></code></pre></td></tr></table></figure>
                 
               </div>
             
@@ -394,6 +402,12 @@
                 <div class="post-prevnext my-3">
                   <article class="post-prev col-6">
                     
+                    
+                      <a href="/2025/08/28/transformer/" title="transformer">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">transformer</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
                     
                   </article>
                   <article class="post-next col-6">
